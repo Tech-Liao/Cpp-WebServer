@@ -1,0 +1,9 @@
+{
+    "files.associations": {
+        "*.scm": "racket",
+        "*.lua": "xmake",
+        "*.cpp": "cpp",
+        "*.tex": "latex",
+        "iostream": "cpp"
+    }
+}
