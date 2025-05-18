@@ -114,3 +114,69 @@ int accept(int sockfd,struct sockaddr *client_addr,socklen_t *client_addr_len);
 //成功返回新的sockfd进行通信，失败返回-1并设置errno
 ```
 
+### commit 180141d
+
+本次提交主要用Cmake重构项目，使项目编译过简化，便于维护，其次实现echo功能，最后用一个函数来接受返回处理错误。
+
+echo服务：客户端发送信息给服务端，服务端将信息回传给客户端。
+
+![image-20250518151917215](./assets/image-20250518151917215.png)
+
+#### 涉及API
+
+```c++
+// socket创建的文件描述符可以使用文件的read/write读写
+// 这次主要介绍socket
+ssize_t recv(int sockfd,void*buf,size_t len,int flags);	
+/*
+	sockfd写入len个字符，到buf。
+	flag：读取控制，MSG_DONTWAIT--该操作非阻塞
+*/
+ssize_t send(int sockfd,const void*buf,size_t len,int flags);
+/*
+	buf中len字符写入sockfd中
+*/
+
+```
+
+#### 修改部分
+
+```c++
+int connfd = accept(sockfd, (sockaddr *)&client_addr, &clt_addr_len);
+Dealerrno(connfd==-1,"accept失败");
+if (connfd < 0)
+{
+    std::cout << "errno is " << errno << std::endl;
+}
+else
+{
+    //成功打印客户端ip和端口号
+    char remote[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET,&client_addr.sin_addr,remote,INET_ADDRSTRLEN);
+    std::cout<<"connected with ip:"<<remote<<" and port:"<<ntohs(client_addr.sin_port)<<std::endl;
+    char buf[MAX_LENTH];
+    while(true)
+    {
+        memset(buf,0,sizeof(buf));
+        ret = recv(connfd,buf,sizeof(buf),MSG_WAITALL);
+        if(ret == 0)
+        {
+            std::cout<<"client already closed!\n";
+            close(connfd);
+        }
+        ret =send(connfd,buf,sizeof(buf),MSG_WAITALL);
+        Dealerrno(ret==-1,"send失败");
+    }
+}
+
+#include "User.h"
+void Dealerrno(bool flag, std::string msg)
+{
+    if (flag)
+    {
+        std::cout << msg << "\n";
+        exit(-1);
+    }
+}
+```
+
