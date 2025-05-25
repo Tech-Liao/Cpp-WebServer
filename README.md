@@ -263,6 +263,8 @@ int pipe(int fd[2]);
 
 ### Day4
 
+#### select实现聊天室功能
+
 本次提交是从一个新的分支（chatroom）实现聊天室功能，多个客户端可以通过服务端进行通信交流。这个分支要将聊天功能不断迭代，最终想要实现类似QQ或微信的应用。
 
 因为需要连接多个客户端，服务端可以采用IO复用API来处理此问题。我会实现select，poll和epoll这三个IO复用API。
@@ -308,3 +310,19 @@ int pipe(int fd[2]);
 ```
 
 暂时解决方法：只传输相同数量的字符。
+
+####  poll实现聊天室
+
+具体流程与select没什么区别，只是将IO复用的函数替换成poll。
+
+在《高性能服务器》书上，用了一个结构体来存储客户端的数据，
+
+```c++
+struct client_data
+{
+    sockaddr_in address;	//客户端地址
+    char *write_buf;		//客户端写缓冲	--通过指针，指向服务端接受的字符串减少复制开销
+    char buf[BUFFER_SIZE];	//客户端读缓存
+};
+```
+
