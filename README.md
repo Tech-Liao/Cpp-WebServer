@@ -260,3 +260,51 @@ int pipe(int fd[2]);
 	}
 */
 ```
+
+### Day4
+
+本次提交是从一个新的分支（chatroom）实现聊天室功能，多个客户端可以通过服务端进行通信交流。这个分支要将聊天功能不断迭代，最终想要实现类似QQ或微信的应用。
+
+因为需要连接多个客户端，服务端可以采用IO复用API来处理此问题。我会实现select，poll和epoll这三个IO复用API。
+
+在客户端代码逻辑：首先创建sockfd，向服务端地址发起连接，将sockfd在select上注册，然后进入死循环，判断sockfd事件是否就绪（读，写），通过select来分辨。注意：客户端是通过标准输入，因此需要将标准输入的文件描述符也要加入select上注册。然后将标准输入的字符复制到sockfd上，这样sockfd就不会有写事件，只会有读事件。
+
+在服务端代码逻辑：创建sockfd，绑定地址并监听，然后将sockfd在select注册，然后进入死循环，有三类事件：新连接connfd到达并将其在select注册，读事件（分辨是哪个连接，并将信息分发给其他连接），写事件（同理可得）。
+
+问题1:首先在客户端出问题不知道讲哪些文件描述符进行监听（通过看书才知道，标准输入也是一个文件描述符，可以通过监听标准输入，然后将标准输入的数据发送给connfd。因此标准输入与connfd都只需要监听读事件即可）。同理，在服务端的问题，不知道如何管理多个客户端连接（可以通过整型数组进行管理，通过循环便利查看是否连接）。其次，需要监听什么事件（当一个客户端发送数据时，该连接读事件，然后将数据发送给其他连接，因此所有文件描述符都监听读事件）
+
+问题2:在服务端接收到会出现重复发送字符串。
+
+![image-20250525091022044](./assets/image-20250525091022044.png)
+
+```c++
+        for (int i = 0; i < USER_LIMIT; i++)
+        {
+            curfd = fd[i];
+            if (curfd != -1 && FD_ISSET(curfd, &readfds))
+            {
+                memset(buf, '\0', BUFFER_SIZE);
+                ret = recv(curfd, buf, BUFFER_SIZE-1, 0);
+                printf("get %d bytes of client data %s from %d\n", ret, buf, curfd);
+                if(ret >0)
+                {
+                    buf[ret]=0;
+                    printf("%d >> %s\n",curfd,buf);
+                    for(int j=0;j<USER_LIMIT;j++)
+                    {
+                        if(-1 != fd[j] && fd[j]!=curfd)
+                            send(fd[j],buf,strlen(buf),0);
+                    }
+                }
+                else
+                {
+                    printf("客户端:%d 已断开连接\n",curfd);
+                    fd[i] = -1;
+                    user_count--;
+                    close(curfd);
+                }
+            }
+        }
+```
+
+暂时解决方法：只传输相同数量的字符。

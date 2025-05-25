@@ -1,6 +1,6 @@
 #ifndef USER_H
 #define USER_H
-#include<string>
-#include<iostream>
-void Dealerrno(bool flag,std::string msg);
+
+void errif(bool condition,const char *errmsg);
+int setnonblocking(int fd);
 #endif
