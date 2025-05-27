@@ -260,3 +260,17 @@ int pipe(int fd[2]);
 	}
 */
 ```
+
+### Day4
+
+用epoll重构echo服务端，实现支持多个客户端连接（不用多进程来实现）
+
+epoll是Linux专用的IO复用技术。它通过向内核注册内核事件表（得到管理事件表的文件描述符），向事件表注册事件来监听事件状态。
+
+```c++
+#include<sys/epoll.h>
+int epoll_create(int size);	//创建内核事件表，返回文件描述符
+int epoll_ctl(int epfd, int op,int fd,struct event_data ev);	//操作文件描述符，有注册，修改，删除
+int epoll_wait(int epfd,struct event_data *ev,int maxsize,int time);	//监听内核事件表上的事件
+```
+

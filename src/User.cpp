@@ -1,9 +1,11 @@
 #include "User.h"
-void Dealerrno(bool flag, std::string msg)
+#include<iostream>
+
+void errif(bool flag,const char *msg)
 {
-    if (flag)
+    if(flag)
     {
-        std::cout << msg << "\n";
-        exit(-1);
+        perror(msg);
+        exit(EXIT_FAILURE);
     }
 }

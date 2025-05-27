@@ -1,6 +1,4 @@
 #ifndef USER_H
 #define USER_H
-#include<string>
-#include<iostream>
-void Dealerrno(bool flag,std::string msg);
+void errif(bool flag,const char *msg);
 #endif

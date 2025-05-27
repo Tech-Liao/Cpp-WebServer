@@ -16,13 +16,13 @@ int main()
     memset(&server_addr,0,sizeof(server_addr));
     server_addr.sin_family = AF_INET;
     ret = inet_aton(ip,&server_addr.sin_addr); 
-    Dealerrno(ret == 0,"inet_aton失败");
+    errif(ret == 0,"inet_aton失败");
     server_addr.sin_port = port;
 
     int connfd = socket(AF_INET,SOCK_STREAM,0);
-    Dealerrno(connfd==-1,"socket创建失败");
+    errif(connfd==-1,"socket创建失败");
     ret = connect(connfd,(struct sockaddr *)&server_addr,sizeof(server_addr));
-    Dealerrno(ret==-1,"connect连接失败");
+    errif(ret==-1,"connect连接失败");
     if(ret == 0)
     {
         std::cout<<"connection success\n";
@@ -36,11 +36,16 @@ int main()
                 close(connfd);
                 break;
             }
-            ret = send(connfd,buf,sizeof(buf),MSG_WAITALL);
-            Dealerrno(ret == -1,"send失败");
+            ret = send(connfd,buf,sizeof(buf),0);
+            errif(ret == -1,"send失败");
             memset(buf,0,sizeof(buf));
-            ret = recv(connfd,buf,sizeof(buf),MSG_WAITALL);
-            Dealerrno(ret == -1,"recv失败");
+            ret = recv(connfd,buf,sizeof(buf),0);
+            errif(ret == -1,"recv失败");
+            if(ret == 0)
+            {
+                std::cout<<"server close\n";
+                break;
+            }
             std::cout<<buf<<std::endl;
         }
     }

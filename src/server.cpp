@@ -6,8 +6,13 @@
 #include <unistd.h>
 #include "User.h"
 #include <fcntl.h>
-#define MAX_LENTH 1024
-
+#include<sys/epoll.h>
+#include<vector>
+#include<iterator>
+#include <algorithm>
+#define BUFFER_SIZE 1024
+#define USER_LIMIT 5
+#define EVENT_LIMIT 1024
 int setnonblocking(int fd)
 {
     int old_option = fcntl(fd,F_GETFL);
@@ -15,6 +20,15 @@ int setnonblocking(int fd)
     fcntl(fd,F_SETFL,new_option);
     return old_option;
 }
+
+void addFd(int epfd,int fd,int flag)
+{
+    epoll_event ev;
+    ev.data.fd=fd;
+    ev.events = EPOLLIN;
+    epoll_ctl(epfd,EPOLL_CTL_ADD,fd,&ev);
+}
+
 int main()
 {
     int ret;
@@ -27,68 +41,66 @@ int main()
     addr.sin_family = AF_INET;           // 代表地址族类型，AF_INET代表IPV4地址族
     addr.sin_port = port;                // 端口号
     ret = inet_aton(ip, &addr.sin_addr); // 将IP地址转换成网络通信中所需要的类型
-    Dealerrno(ret == -1, "inet_aton失败");
+    errif(ret == -1, "inet_aton失败");
     // 创建通信文件描述符，并不知道通信的地址
     int sockfd = socket(PF_INET, SOCK_STREAM, 0);
-    Dealerrno(sockfd == -1, "socket创建失败");
+    errif(sockfd == -1, "socket创建失败");
     // 绑定通信地址
     ret = bind(sockfd, (sockaddr *)&addr, sizeof(addr));
-    Dealerrno(ret == -1, "bind创建失败");
+    errif(ret == -1, "bind创建失败");
     // 监听通信文件描述符，是否有客户端连接
     ret = listen(sockfd, 5);
-    Dealerrno(ret == -1, "listen创建失败");
-    // sleep(10);
-    // 发现监听队列有客户连接，需要接受连接
-
+    errif(ret == -1, "listen创建失败");
+    char buf[BUFFER_SIZE];
+    int epfd = epoll_create(1);         //  创建epoll
+    addFd(epfd,sockfd,EPOLLIN);
+    std::vector<int> users;
     while (true)
     {
-        // 客户端地址
-        struct sockaddr_in client_addr;
-        memset(&client_addr, 0, sizeof(client_addr));
-        socklen_t clt_addr_len = sizeof(client_addr);
-        int connfd = accept(sockfd, (sockaddr *)&client_addr, &clt_addr_len);
-        Dealerrno(connfd == -1, "accept失败");
-        // 进程间通信
-        int pipefd[2];
-        ret = pipe(pipefd);
-        setnonblocking(pipefd[0]);
-        setnonblocking(pipefd[1]);
-        Dealerrno(ret == -1,"pipe创建失败");
-        if (fork() == 0)
+        epoll_event evs[EVENT_LIMIT];
+        ret = epoll_wait(epfd,evs,EVENT_LIMIT,-1);
+        errif(ret<0,"epoll wait failure");
+        for(int i=0,nums=ret;i<nums;i++)
         {
-            // 在子进程中
-            //  1.关闭监听sockfd,pipefd[0]
-            close(sockfd);
-            close(pipefd[0]);
-            //  2.执行功能
-            char buf[MAX_LENTH];
-            while (true)
+            int curfd = evs[i].data.fd;
+            if(curfd == sockfd)
             {
-                memset(buf, 0, sizeof(buf));
-                ret = recv(connfd, buf, sizeof(buf), MSG_WAITALL);
-                if (ret == 0)
-                {   
-                    //这里表示客户端断开连接
-                    char *str="client already closed!";
-                    std::cout << str<<std::endl;
-                    write(pipefd[1],str,sizeof(str));
+                sockaddr_in cl_addr;
+                socklen_t len = sizeof(cl_addr);
+                int connfd = accept(curfd,(struct sockaddr *)&cl_addr,&len);
+                errif(connfd==-1,"accept failure");
+                if(users.size()>=USER_LIMIT)
+                {
+                    const char *msg = "server had too many user\n";
+                    send(connfd,msg,strlen(msg),0);
                     close(connfd);
-                    break;
+                    continue;
                 }
-                ret = send(connfd, buf, sizeof(buf), MSG_WAITALL);
-                Dealerrno(ret == -1, "send失败");
+                users.push_back(connfd);
+                addFd(epfd,connfd,EPOLLIN);
+                setnonblocking(connfd);
             }
-            //  3. 退出子进程
-            exit(-1);
+            else if(evs[i].events & EPOLLIN)
+            {
+                memset(buf,0,BUFFER_SIZE);
+                ret =recv(curfd,buf,BUFFER_SIZE-1,0);
+                if(ret<0)
+                {
+                    std::cout<<curfd<<"had left\n";
+                    users.erase(std::remove(users.begin(), users.end(), curfd), users.end());
+                    std::cout<<users.size()<<std::endl;
+                    close(curfd);
+                    continue;
+                }
+                else
+                {
+                    buf[ret]='\0';
+                    send(curfd,buf,strlen(buf),0);
+                }
+            }
         }
-        //父进程关闭connfd连接
-        close(connfd);
-        close(pipefd[1]);
-        char buf[MAX_LENTH];
-        memset(buf,0,sizeof(buf));
-        read(pipefd[0],buf,sizeof(buf));
-        std::cout<<buf;
     }
+    close(epfd);
     close(sockfd);
     return 0;
 }
